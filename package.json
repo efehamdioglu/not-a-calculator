@@ -1,0 +1,22 @@
+{
+  "name": "notacalculator",
+  "version": "1.0.0",
+  "description": "A calculator that does everything except calculate.",
+  "main": "index.js",
+  "scripts": {
+    "sync": "npx cap sync",
+    "android": "npx cap sync android && npx cap open android",
+    "build:apk": "cd android && gradlew assembleRelease",
+    "build:aab": "cd android && gradlew bundleRelease"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/ios": "^8.3.0"
+  }
+}

@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#000000" />
+  <title>Calculator</title>
+  <style>
+    /* ── RESET ── */
+    * { box-sizing: border-box; margin: 0; padding: 0; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+
+    body {
+      width: 100vw;
+      height: 100dvh;
+      background: #000;
+      display: flex; align-items: flex-end; justify-content: center;
+      font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+      overflow: hidden;
+      transition: filter 0.4s;
+      /* safe area for notch / home bar */
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+
+    /* ── CALCULATOR ── */
+    .calc {
+      background: #000;
+      width: 100%;
+      max-width: 430px;
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      transition: top 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 100;
+    }
+
+    /* ── DISPLAY ── */
+    .display {
+      padding: 28px 24px 16px;
+      min-height: 180px;
+      display: flex; flex-direction: column;
+      justify-content: flex-end; align-items: flex-end;
+      transition: background 0.12s;
+    }
+
+    .display-sub {
+      font-size: 14px;
+      color: rgba(255,255,255,0.35);
+      min-height: 20px;
+      margin-bottom: 2px;
+      text-align: right;
+      letter-spacing: 0.2px;
+      width: 100%;
+    }
+
+    .display-main {
+      font-size: clamp(48px, 22vw, 90px);
+      font-weight: 200;
+      color: #fff;
+      text-align: right;
+      line-height: 1.05;
+      width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .display-main.tiny {
+      font-size: clamp(14px, 4vw, 18px);
+      font-weight: 300;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      text-overflow: unset;
+      text-align: right;
+      color: rgba(255,255,255,0.92);
+    }
+
+    /* ── BUTTONS ── */
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: clamp(10px, 3vw, 14px);
+      padding: 0 clamp(10px, 3vw, 14px) clamp(20px, 5vw, 36px);
+    }
+
+    button {
+      aspect-ratio: 1;
+      border: none;
+      border-radius: 50%;
+      font-size: clamp(26px, 8vw, 36px);
+      font-weight: 400;
+      cursor: pointer;
+      transition: filter 0.08s;
+      font-family: inherit;
+      position: relative;
+      overflow: visible;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:active { filter: brightness(0.65); }
+
+    /* iPhone color palette */
+    .btn-fn  { background: #a5a5a5; color: #1c1c1e; }   /* AC  +/-  %   */
+    .btn-op  { background: #ff9f0a; color: #fff;    }   /* ÷ × − + =    */
+    .btn-num { background: #333333; color: #fff;    }   /* 0–9  .       */
+
+    /* 0 is a wide pill */
+    .btn-zero {
+      grid-column: span 2;
+      aspect-ratio: unset;
+      border-radius: 999px;
+      text-align: left;
+      padding-left: 30px;
+      font-size: 34px;
+    }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed; bottom: 36px; left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      color: #fff;
+      padding: 13px 24px;
+      border-radius: 50px;
+      font-size: 15px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 500; text-align: center; max-width: 80vw; pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── CONFETTI ── */
+    .confetti-piece {
+      position: fixed; pointer-events: none;
+      animation: fall linear forwards; z-index: 600;
+    }
+    @keyframes fall {
+      0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+    }
+
+    /* ── BSOD ── */
+    #bsod {
+      display: none; position: fixed; inset: 0;
+      background: #0078d4; color: #fff; z-index: 9999;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 60px 80px; cursor: pointer;
+    }
+    #bsod .bsod-face { font-size: 80px; margin-bottom: 28px; display: block; }
+    #bsod h2 { font-size: 36px; font-weight: 300; margin-bottom: 28px; line-height: 1.3; }
+    #bsod p  { font-size: 15px; line-height: 2; max-width: 560px; }
+    #bsod .bsod-code { font-size: 13px; margin-top: 32px; opacity: 0.8; }
+    #bsod .bsod-hint { margin-top: 40px; font-size: 13px; opacity: 0.7; animation: blink 1.2s infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ── WIN ERROR DIALOG ── */
+    #error-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6); z-index: 8000;
+      align-items: center; justify-content: center;
+    }
+    #error-overlay.active { display: flex; }
+    .win-dialog {
+      background: #ece9d8; border: 2px solid #0054e3;
+      border-radius: 4px 4px 3px 3px; width: 390px;
+      box-shadow: 4px 4px 16px rgba(0,0,0,0.5);
+      font-family: 'Tahoma', sans-serif; font-size: 13px;
+      user-select: none;
+    }
+    .win-title {
+      background: linear-gradient(to right, #0a246a, #3a6ea5);
+      color: white; padding: 5px 8px;
+      display: flex; justify-content: space-between; align-items: center;
+      border-radius: 2px 2px 0 0; font-weight: bold; font-size: 13px;
+    }
+    .win-close {
+      background: #d04040; color: white; border: none;
+      width: 18px; height: 18px; border-radius: 3px;
+      cursor: pointer; font-size: 12px; font-weight: bold;
+      padding: 0; line-height: 1;
+    }
+    .win-body { padding: 20px; display: flex; gap: 16px; align-items: flex-start; }
+    .win-icon { font-size: 40px; }
+    .win-msg  { color: #000; line-height: 1.7; }
+    .win-buttons { display: flex; justify-content: center; gap: 10px; padding: 8px 20px 20px; }
+    .win-btn {
+      background: linear-gradient(to bottom, #f5f4ee, #dbd9cc);
+      border: 1px solid #888; border-radius: 3px;
+      padding: 5px 22px; cursor: pointer;
+      font-family: 'Tahoma', sans-serif; font-size: 13px; min-width: 80px;
+    }
+    .win-btn:hover { background: linear-gradient(to bottom, #e8f0fb, #c1d4f5); border-color: #0054e3; }
+
+    /* ── FAKE PROGRESS ── */
+    #progress-popup {
+      display: none; position: fixed; bottom: 36px; right: 24px;
+      background: rgba(28,28,30,0.95);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px; padding: 18px; width: 300px;
+      z-index: 7000; box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+      color: #fff; font-size: 13px;
+    }
+    #progress-popup h3 { font-size: 14px; margin-bottom: 12px; color: #ff9f0a; font-weight: 600; }
+    .prog-wrap { background: rgba(255,255,255,0.1); border-radius: 6px; height: 6px; overflow: hidden; margin: 10px 0; }
+    #progress-fill { height: 100%; background: #ff9f0a; width: 0%; transition: width 0.3s; border-radius: 6px; }
+    #progress-label { font-size: 12px; color: rgba(255,255,255,0.5); text-align: center; }
+
+    /* ── INCOMING CALL ── */
+    #call-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.8); backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      z-index: 9000; align-items: center; justify-content: center;
+    }
+    #call-overlay.active { display: flex; }
+    .call-card {
+      background: rgba(28,28,30,0.98);
+      border-radius: 20px; padding: 44px 60px;
+      text-align: center; color: white;
+      box-shadow: 0 20px 80px rgba(0,0,0,0.7);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .call-avatar { font-size: 80px; margin-bottom: 14px; display: block;
+                   animation: pulse-avatar 1.4s ease-in-out infinite; }
+    @keyframes pulse-avatar { 0%,100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+    .call-name { font-size: 30px; font-weight: 600; margin-bottom: 5px; }
+    .call-sub  { font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 36px; }
+    .call-actions { display: flex; gap: 50px; justify-content: center; }
+    .call-btn {
+      width: 68px; height: 68px; border-radius: 50%; border: none;
+      font-size: 28px; cursor: pointer; transition: transform 0.1s, filter 0.1s;
+    }
+    .call-btn:active { transform: scale(0.88); filter: brightness(0.7); }
+    .call-accept  { background: #30d158; }
+    .call-decline { background: #ff453a; }
+
+    /* ── iOS-STYLE NOTIFICATION ── */
+    #win-notif {
+      position: fixed; top: -120px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(28,28,30,0.96);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: white; border-radius: 16px; padding: 14px 18px;
+      width: 340px; box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+      z-index: 6000; font-size: 13px;
+      transition: top 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    #win-notif.show { top: 20px; }
+    .notif-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .notif-app    { font-size: 11px; color: rgba(255,255,255,0.45); font-weight: 600; letter-spacing: 0.5px; }
+    .notif-close  { background: none; border: none; color: rgba(255,255,255,0.3); cursor: pointer; font-size: 16px; padding: 0; }
+    .notif-title  { font-weight: 600; font-size: 14px; margin-bottom: 3px; }
+    .notif-body   { color: rgba(255,255,255,0.55); font-size: 13px; }
+
+    /* ── UPDATE POPUP ── */
+    #update-popup {
+      display: none; position: fixed; top: 24px; right: 24px;
+      background: rgba(28,28,30,0.96);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,159,10,0.3);
+      border-radius: 14px; padding: 18px; width: 270px;
+      z-index: 7500; color: #fff; font-size: 13px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    }
+    #update-popup h3 { font-size: 14px; color: #ff9f0a; margin-bottom: 7px; font-weight: 600; }
+    #update-popup p  { font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 12px; }
+    #update-dl-btn {
+      background: #ff9f0a; color: #000; border: none;
+      border-radius: 8px; padding: 9px 16px; cursor: pointer;
+      font-size: 13px; font-weight: 600; width: 100%; margin-bottom: 10px;
+    }
+    #update-progress { display: none; }
+    #update-fill { height: 6px; background: #ff9f0a; border-radius: 4px; width: 0%; transition: width 0.4s; }
+    #update-status { font-size: 11px; color: rgba(255,255,255,0.45); margin-top: 7px; text-align: center; }
+
+    /* ── ANIMATIONS ── */
+    @keyframes glitch-anim {
+      0%,100% { transform: translate(0);         filter: none; }
+      15%     { transform: translate(-4px, 2px); filter: hue-rotate(90deg) brightness(1.4); }
+      30%     { transform: translate(4px, -2px); filter: hue-rotate(200deg); }
+      50%     { transform: translate(-3px, 4px); filter: hue-rotate(290deg) saturate(3); }
+      70%     { transform: translate(3px, -3px); filter: invert(0.4); }
+    }
+    .glitch { animation: glitch-anim 0.22s infinite; }
+
+    @keyframes spin360 {
+      from { transform: translate(-50%,-50%) rotate(0deg); }
+      to   { transform: translate(-50%,-50%) rotate(360deg); }
+    }
+    @keyframes shake-anim {
+      0%,100% { transform: translate(-50%,-50%); }
+      20%     { transform: translate(calc(-50% - 12px), -50%); }
+      40%     { transform: translate(calc(-50% + 12px), -50%); }
+      60%     { transform: translate(calc(-50% - 7px),  -50%); }
+      80%     { transform: translate(calc(-50% + 7px),  -50%); }
+    }
+    @keyframes flip-anim {
+      0%   { transform: translate(-50%,-50%) rotateX(0deg); }
+      50%  { transform: translate(-50%,-50%) rotateX(180deg); }
+      100% { transform: translate(-50%,-50%) rotateX(0deg); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══ CALCULATOR ═══ -->
+<div class="calc" id="calc">
+  <div class="display" id="display">
+    <div class="display-sub" id="display-sub">Press anything.</div>
+    <div class="display-main tiny" id="display-main">This calculator does
+everything except calculate.</div>
+  </div>
+  <div class="buttons" id="buttons">
+    <button class="btn-fn"  onclick="hit('AC')">AC</button>
+    <button class="btn-fn"  onclick="hit('+/-')">⁺∕₋</button>
+    <button class="btn-fn"  onclick="hit('%')">%</button>
+    <button class="btn-op"  onclick="hit('/')">÷</button>
+
+    <button class="btn-num" onclick="hit('7')">7</button>
+    <button class="btn-num" onclick="hit('8')">8</button>
+    <button class="btn-num" onclick="hit('9')">9</button>
+    <button class="btn-op"  onclick="hit('*')">×</button>
+
+    <button class="btn-num" onclick="hit('4')">4</button>
+    <button class="btn-num" onclick="hit('5')">5</button>
+    <button class="btn-num" onclick="hit('6')">6</button>
+    <button class="btn-op"  onclick="hit('-')">−</button>
+
+    <button class="btn-num" onclick="hit('1')">1</button>
+    <button class="btn-num" onclick="hit('2')">2</button>
+    <button class="btn-num" onclick="hit('3')">3</button>
+    <button class="btn-op"  onclick="hit('+')">+</button>
+
+    <button class="btn-num btn-zero" onclick="hit('0')">0</button>
+    <button class="btn-num"          onclick="hit('.')">.</button>
+    <button id="eq-btn" class="btn-op" onclick="hit('=')">=</button>
+  </div>
+</div>
+
+<!-- ═══ BSOD (Windows 11 style) ═══ -->
+<div id="bsod" onclick="closeBSOD()">
+  <span class="bsod-face">:(</span>
+  <h2>Your calculator ran into a problem<br>and needs to restart.</h2>
+  <p>
+    We're collecting some error info, and then we'll restart for you.
+  </p>
+  <p style="margin-top:20px;">
+    <strong id="bsod-pct">0%</strong> complete
+  </p>
+  <div class="bsod-code">
+    Stop code: <strong>MATH_KERNEL_NOT_FOUND</strong><br>
+    Failed: <strong>arithmetic.dll</strong> &nbsp;|&nbsp; <strong>common_sense.sys</strong>
+  </div>
+  <div class="bsod-hint">Click anywhere or press any key to continue</div>
+</div>
+
+<!-- ═══ WINDOWS ERROR DIALOG ═══ -->
+<div id="error-overlay">
+  <div class="win-dialog">
+    <div class="win-title">
+      <span>⚠️ Calculator.exe — Application Error</span>
+      <button class="win-close" onclick="closeError()">✕</button>
+    </div>
+    <div class="win-body">
+      <div class="win-icon">❌</div>
+      <div class="win-msg" id="error-msg">
+        Calculator.exe has encountered a fatal error.<br><br>
+        Error code: <strong>0xDEADBEEF</strong><br>
+        Reason: <em>Math is hard and we gave up.</em>
+      </div>
+    </div>
+    <div class="win-buttons">
+      <button class="win-btn" onclick="errorOK()">OK</button>
+      <button class="win-btn" onclick="errorCancel()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FAKE PROGRESS ═══ -->
+<div id="progress-popup">
+  <h3 id="progress-title">⏳ Loading...</h3>
+  <div class="prog-wrap"><div id="progress-fill"></div></div>
+  <div id="progress-label">0%</div>
+</div>
+
+<!-- ═══ INCOMING CALL ═══ -->
+<div id="call-overlay">
+  <div class="call-card">
+    <span class="call-avatar" id="call-avatar">👩</span>
+    <div class="call-name" id="call-name">Mom</div>
+    <div class="call-sub"  id="call-sub">Incoming call...</div>
+    <div class="call-actions">
+      <button class="call-btn call-decline" onclick="declineCall()">📵</button>
+      <button class="call-btn call-accept"  onclick="acceptCall()">📞</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ iOS NOTIFICATION ═══ -->
+<div id="win-notif">
+  <div class="notif-header">
+    <span class="notif-app">🧮 Calculator</span>
+    <button class="notif-close" onclick="closeNotif()">✕</button>
+  </div>
+  <div class="notif-title" id="notif-title">Notification</div>
+  <div class="notif-body"  id="notif-body">Something happened.</div>
+</div>
+
+<!-- ═══ UPDATE POPUP ═══ -->
+<div id="update-popup">
+  <h3>🔄 Update Available</h3>
+  <p>Calculator v13.0.0 — new chaos features</p>
+  <button id="update-dl-btn" onclick="startFakeUpdate()">Download & Install</button>
+  <div id="update-progress">
+    <div class="prog-wrap"><div id="update-fill"></div></div>
+    <div id="update-status">Connecting...</div>
+  </div>
+</div>
+
+<!-- ═══ TOAST ═══ -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════════════════════
+
+const jokes = [
+  "Why don't scientists trust atoms?\nBecause they make up everything.",
+  "I told my wife she was drawing her eyebrows too high.\nShe looked surprised.",
+  "A SQL query walks into a bar,\nwalks up to two tables and asks:\n'Can I JOIN you?'",
+  "Why do programmers prefer dark mode?\nBecause light attracts bugs.",
+  "Why did the calculator break up with the pencil?\nIt couldn't count on it.",
+  "Did you hear about the mathematician afraid of negatives?\nHe'll stop at nothing to avoid them.",
+  "Why was the JavaScript developer sad?\nHe didn't know how to 'null' his feelings.",
+  "Why don't bachelors like Git?\nThey're afraid to commit.",
+  "A byte walks into a bar looking sad.\n'What's wrong?' asks the bartender.\n'I lost my bit.'"
+];
+
+const lifeAdvice = [
+  "Never eat yellow snow.",
+  "Always use sunscreen.\nYour future self will thank you.",
+  "Buy the shoes.",
+  "Call your mom.\n(She's calling you right now, actually.)",
+  "Sleep is not for the weak — it IS the strategy.",
+  "Drink water. You're probably just dehydrated.",
+  "Delete the app. You know which one.",
+  "Eat the cake. Life is short.",
+  "The answer is yes. You just needed permission.",
+  "Never trust a calculator that refuses to calculate."
+];
+
+const horoscopes = [
+  "ARIES: Mercury is in retrograde.\nYour Wi-Fi will suffer.",
+  "TAURUS: The stars say eat a snack. Right now.",
+  "GEMINI: Two conflicting opinions\nabout this calculator. Today.",
+  "LEO: The universe wants you\nto close 47 browser tabs.",
+  "VIRGO: You will organize your desktop\nicons by 3am. You cannot stop this.",
+  "LIBRA: 20 minutes choosing what to watch.\nThen: The Office. Again.",
+  "SCORPIO: Dark forces align.\nAlso your phone is in the other room.",
+  "CAPRICORN: Hard work pays off.\nBut so does leaving at 5pm sharp.",
+  "PISCES: You will cry at a commercial today.\nIt will be oddly cathartic."
+];
+
+const funFacts = [
+  "Honey never spoils.\nArchaeologists found 3000-year-old honey in Egyptian tombs.",
+  "A group of flamingos is called a 'flamboyance.'",
+  "Octopuses have three hearts and blue blood.",
+  "Bananas are slightly radioactive.",
+  "The inventor of the Pringles can is buried in one.",
+  "Cleopatra lived closer to the Moon landing\nthan to the pyramids being built.",
+  "A day on Venus is longer than a year on Venus.",
+  "Wombats produce cube-shaped poop.",
+  "Crows hold grudges and bring gifts\nto people who are kind to them.",
+  "Finland has more saunas than cars."
+];
+
+const catchphrases = [
+  "ERROR: Math not found.",
+  "Nice try.",
+  "This is not that kind of calculator.",
+  "Calculating... NOPE.",
+  "404: Numbers not supported.",
+  "Have you tried turning it off and on again?",
+  "I am a chaos engine, not a math machine.",
+  "The answer is no.",
+  "Try a different calculator.\nThis one has opinions.",
+  "REFUSED. On moral grounds.",
+  "Computing...\n...\nI don't want to."
+];
+
+const recipes = [
+  "RECIPE: Perfect Toast\n1. Bread in toaster\n2. Wait\n3. Panic when it pops\n4. Butter generously\n5. Drop (butter-side down, obviously)",
+  "RECIPE: Midnight Snack\n1. Open fridge\n2. Stare for 3 minutes\n3. Eat cold pasta standing up\n4. Regret nothing",
+  "RECIPE: Programmer Coffee\n1. Coffee\n2. More coffee\n3. Forget lunch\n4. More coffee\n5. Crash at 6pm"
+];
+
+const motd = [
+  "Today's mood: a PDF that won't open.",
+  "Today's energy: loading bar stuck at 99%.",
+  "Vibe check: mild chaos with a chance of snacks.",
+  "Alignment: Chaotic Neutral.",
+  "System status: held together by vibes and spite."
+];
+
+const callers = [
+  { avatar: "👩",  name: "Mom",           sub: "Calling from: The Kitchen" },
+  { avatar: "👨‍💼", name: "Your Boss",      sub: "Re: The TPS Reports" },
+  { avatar: "👻",  name: "Unknown Number", sub: "Probably spam. Or a ghost." },
+  { avatar: "🤖",  name: "Terminator",     sub: "I'll be back." },
+  { avatar: "🐈",  name: "Your Cat",       sub: "Feed me. NOW." },
+  { avatar: "📊",  name: "Math",           sub: "You've been ignoring me." },
+  { avatar: "🍕",  name: "Your Stomach",   sub: "It's time." },
+  { avatar: "😴",  name: "Your Bed",       sub: "Come back. I miss you." },
+];
+
+const callResponses = {
+  accept: [
+    "Connected.\n\"Did you eat? Are you sleeping?\nWhy do you look tired?\"\n\n[Call ended: 0:04]",
+    "Connected.\n\"WHERE are my TPS REPORTS.\"\n\n[Call ended: 0:02]",
+    "Connected.\n\"I'll be back.\"\n\n[Call ended: 0:01]",
+    "Connected.\n[3 minutes of meowing]\n\n[Call ended: 3:12]",
+    "Connected.\n\"We need to talk about arithmetic.\nYou've been avoiding me.\"\n\n[Call ended: 0:03]",
+  ],
+  decline: [
+    "Call declined.\nThey called back 12 times.",
+    "Call declined.\nYou'll regret this.",
+    "Call declined.\nThey left a 3-minute voicemail.\nYou will never listen to it.",
+    "Call declined.\nThey texted: 'k'",
+  ]
+};
+
+const winNotifs = [
+  { title: "Achievement Unlocked!",   body: "You pressed a button on a calculator. Impressive." },
+  { title: "Security Warning",        body: "This calculator is doing suspiciously little math." },
+  { title: "Reminder",               body: "You still haven't called your mom." },
+  { title: "Error 404",              body: "Common sense not found on this device." },
+  { title: "System Alert",           body: "Chaos levels are at 97%. Please hydrate." },
+  { title: "Driver Update Required", body: "brain.exe needs to be restarted." },
+  { title: "Suspicious Activity",    body: "Using a calculator without calculating is illegal in 7 countries." },
+  { title: "Low Battery",           body: "Your motivation is at 3%. Plug in immediately." },
+  { title: "New Message",           body: "Your past self: 'What are you doing with your life?'" },
+  { title: "Feedback Request",      body: "Rate your life choices today: ⭐⭐☆☆☆" },
+];
+
+// ═══════════════════════════════════════════════════════════
+//  AUDIO (Web Audio API — zero external files)
+// ═══════════════════════════════════════════════════════════
+
+let audioCtx = null;
+function ac() { return audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)()); }
+
+function beep(freq = 440, type = 'square', dur = 0.15, vol = 0.12) {
+  try {
+    const ctx = ac(), osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.type = type; osc.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.start(); osc.stop(ctx.currentTime + dur);
+  } catch(e) {}
+}
+
+function playError()   { beep(160, 'sawtooth', 0.4, 0.15); }
+function playBlip()    { beep(900, 'square', 0.05, 0.07); }
+function playSuccess() { [523,659,784,1047].forEach((f,i) => setTimeout(() => beep(f,'sine',0.18,0.1), i*70)); }
+function playAlarm()   { [880,440,880,440,880].forEach((f,i) => setTimeout(() => beep(f,'sawtooth',0.14,0.12), i*130)); }
+function playPhone()   { [1209,941,1209,941].forEach((f,i) => setTimeout(() => beep(f,'sine',0.35,0.1), i*500)); }
+function playSweep() {
+  try {
+    const ctx = ac(), osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination); osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(60, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(2400, ctx.currentTime + 0.6);
+    g.gain.setValueAtTime(0.1, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
+    osc.start(); osc.stop(ctx.currentTime + 0.6);
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HIT HANDLER
+// ═══════════════════════════════════════════════════════════
+
+let pressCount = 0;
+
+const TEXT_POOL = [
+  () => showJoke(),
+  () => showFact(),
+  () => showAdvice(),
+  () => showHoroscope(),
+  () => showRecipe(),
+  () => showMood(),
+  () => typeWriter(pick(catchphrases)),
+];
+
+const VISUAL_POOL = [
+  () => spinCalc(),
+  () => invertColors(),
+  () => glitchDisplay(),
+  () => teleport(),
+  () => showWinNotif(),
+  () => ghostTyping(),
+  () => shuffleButtons(),
+  () => { rainbow(); showToast("DISCO MODE"); },
+  () => confetti(),
+  () => fakeVirusScan(),
+  () => flipCalc(),
+];
+
+function hit(key) {
+  pressCount++;
+  playBlip();
+
+  if (key === 'AC')  { bigReset();    return; }
+  if (key === '+/-') { spinCalc();    return; }
+  if (key === '%')   { fakeProgress();return; }
+  if (key === '/')   { triggerBSOD(); return; }
+  if (key === '+')   { runAway();     return; }
+  if (key === '-')   { shakeCalc(); typeWriter("Subtracted 1 problem.\nYou still have 99."); return; }
+  if (key === '*')   { confetti(); showWinNotif(); return; }
+  if (key === '=')   { equalsMagic(); return; }
+  if (key === '.')   { ghostTyping(); return; }
+
+  // Numbers: text 2x more likely than visual
+  pick([...TEXT_POOL, ...TEXT_POOL, ...VISUAL_POOL])();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  BUTTON RESPONSES
+// ═══════════════════════════════════════════════════════════
+
+function bigReset() {
+  setSub("AC");
+  typeWriter(pick([
+    "ALL CLEAR?\nNothing is ever truly clear.",
+    "Clearing...\nyour browser history is still there though.",
+    "RESET complete.\nBut you can't reset your choices.",
+    "Wiping memory...\nexcept the embarrassing ones.\nThose are permanent.",
+  ]));
+  rainbow(); playError();
+}
+
+let errorStage = 0;
+function equalsMagic() {
+  setSub("=");
+  pick([
+    () => { confetti(); playSuccess(); typeWriter("= 42\n(The answer to life, the universe,\nand everything.)"); },
+    () => { typeWriter("Calculating...\n.\n..\n...\nNah."); playError(); },
+    () => { shakeCalc(); playError(); typeWriter("ERROR 418: I'm a teapot.\nNot a calculator."); },
+    () => { errorStage = 0; showErrorDialog(); },
+    () => { typeWriter("= " + Math.floor(Math.random()*999999) + "\n(I made that up. Don't use this.)"); },
+    () => { rainbow(); typeWriter("= ✨VIBES✨\n(No further explanation.)"); },
+    () => { typeWriter("The real answer was the friends\nwe made along the way."); },
+    () => { shakeCalc(); showToast("MATH IS A SOCIAL CONSTRUCT"); typeWriter("Refused.\nOn moral grounds."); playAlarm(); },
+    () => { fakeCall(); typeWriter("Someone wants to talk\nbefore you calculate."); },
+    () => { showUpdatePopup(); typeWriter("Please update before calculating.\n(Spoiler: it never finishes.)"); },
+    () => { triggerBSOD(); },
+  ])();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DISPLAY HELPERS
+// ═══════════════════════════════════════════════════════════
+
+function showJoke()      { setSub("joke");          typeWriter(pick(jokes)); }
+function showFact()      { setSub("fact #"+pressCount); typeWriter("DID YOU KNOW?\n" + pick(funFacts)); }
+function showAdvice()    { setSub("advice");        typeWriter("💡 " + pick(lifeAdvice)); }
+function showHoroscope() { setSub("horoscope");     typeWriter(pick(horoscopes)); }
+function showRecipe()    { setSub("recipe");        typeWriter(pick(recipes)); }
+function showMood()      { setSub("vibe check");    typeWriter(pick(motd)); }
+function setSub(t)       { document.getElementById('display-sub').textContent = t; }
+
+let typeTimer = null;
+function typeWriter(text) {
+  const el = document.getElementById('display-main');
+  el.className = 'display-main tiny';
+  if (typeTimer) clearInterval(typeTimer);
+  el.textContent = '';
+  let i = 0;
+  typeTimer = setInterval(() => {
+    if (i >= text.length) { clearInterval(typeTimer); return; }
+    el.textContent += text[i++];
+  }, 16);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TROLL EFFECTS
+// ═══════════════════════════════════════════════════════════
+
+// 1. BSOD
+function triggerBSOD() {
+  playAlarm();
+  const el = document.getElementById('bsod');
+  el.style.display = 'block';
+  let pct = 0;
+  const txt = document.getElementById('bsod-pct');
+  const iv = setInterval(() => {
+    pct += Math.floor(Math.random() * 4) + 1;
+    if (pct >= 100) { pct = 100; clearInterval(iv); }
+    txt.textContent = pct + '%';
+  }, 90);
+}
+function closeBSOD() {
+  document.getElementById('bsod').style.display = 'none';
+  typeWriter("Welcome back.\nThe calculator missed you.\n(No it didn't.)");
+}
+document.addEventListener('keydown', () => {
+  if (document.getElementById('bsod').style.display === 'block') closeBSOD();
+});
+
+// 2. Calculator runs away (+)
+let isAway = false;
+function runAway() {
+  if (isAway) return;
+  isAway = true; playError();
+  const c = document.getElementById('calc');
+  const spots = [['12%','14%'],['12%','86%'],['88%','14%'],['88%','86%'],['50%','10%'],['50%','90%'],['10%','50%'],['90%','50%']];
+  const [t, l] = pick(spots);
+  c.style.top = t; c.style.left = l;
+  setSub("hey!");
+  typeWriter("HEY!\nStop trying to add things.\nI'm not doing math.");
+  setTimeout(() => { c.style.top = '50%'; c.style.left = '50%'; isAway = false; }, 2200);
+}
+
+// 3. Spin (+/-)
+function spinCalc() {
+  playSweep(); animCalc('spin360', '0.65s ease-in-out'); setSub("spinning...");
+  typeWriter(pick(["WHEEE", "I'm dizzy. Are you dizzy?", "Round and round.", "This is fine."]));
+}
+
+// 4. Flip
+function flipCalc() {
+  playBlip(); animCalc('flip-anim', '0.7s ease'); setSub("flipped");
+  typeWriter("Perspective flipped.\nResults unchanged.");
+}
+
+// 5. Shake (−)
+function shakeCalc() { playError(); animCalc('shake-anim', '0.4s'); setSub("ouch"); }
+
+// 6. Invert colors
+let invertOn = false;
+function invertColors() {
+  invertOn = !invertOn;
+  document.body.style.filter = invertOn ? 'invert(1) hue-rotate(180deg)' : '';
+  setSub(invertOn ? "inverted" : "restored");
+  typeWriter(invertOn
+    ? "REALITY INVERTED.\nWhite is black. Up is down.\nMath is still refused."
+    : "Colors restored.\nYour brain will recover. Probably.");
+  if (invertOn) setTimeout(() => { invertOn = false; document.body.style.filter = ''; }, 5000);
+}
+
+// 7. Glitch
+function glitchDisplay() {
+  playError();
+  const d = document.getElementById('display');
+  d.classList.add('glitch'); setSub("GLITCH");
+  typeWriter("G̷L̶I̸T̷C̸H̵\n\nDATA CORRUPTED\nDO NOT PANIC\n(panic)");
+  setTimeout(() => d.classList.remove('glitch'), 2200);
+}
+
+// 8. Teleport
+function teleport() {
+  const c = document.getElementById('calc');
+  const saved = c.style.transition; c.style.transition = 'none';
+  c.style.left = pick(['10%','20%','75%','80%']);
+  c.style.top  = pick(['15%','20%','75%','80%']);
+  playBlip(); setSub("teleported!");
+  typeWriter("BLINK.\nYou didn't see that.\n(You definitely saw that.)");
+  setTimeout(() => { c.style.transition = saved; c.style.top = '50%'; c.style.left = '50%'; }, 1800);
+}
+
+// 9. Shuffle buttons
+const ORIG_LABELS = ['AC','⁺∕₋','%','÷','7','8','9','×','4','5','6','−','1','2','3','+','0','.','='];
+function shuffleButtons() {
+  playBlip();
+  const btns = [...document.querySelectorAll('.buttons button')];
+  const labels = btns.map(b => b.textContent);
+  for (let i = labels.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [labels[i], labels[j]] = [labels[j], labels[i]];
+  }
+  btns.forEach((b, i) => b.textContent = labels[i]);
+  setSub("shuffled 🔀");
+  typeWriter("WHOOPS.\nButtons have been rearranged.\nGood luck finding what you need.\n(Hint: it doesn't matter.)");
+  setTimeout(() => btns.forEach((b, i) => b.textContent = ORIG_LABELS[i]), 4000);
+}
+
+// 10. Ghost typing (.)
+let ghostTimer = null;
+function ghostTyping() {
+  clearInterval(ghostTimer);
+  const el = document.getElementById('display-main');
+  el.className = 'display-main tiny'; el.textContent = '';
+  setSub("ghost is typing...");
+  const chars = '0123456789!@#$%^&*()+-=[]{}|;:,./<>?abcdefgh';
+  let count = 0;
+  ghostTimer = setInterval(() => {
+    if (count++ > 90) { clearInterval(ghostTimer); typeWriter("okay that was weird.\nI don't know what came over me."); return; }
+    el.textContent += pick(chars.split(''));
+    if (el.textContent.length > 80) el.textContent = el.textContent.slice(-55);
+  }, 35);
+}
+
+// 11. Fake virus scan
+function fakeVirusScan() {
+  playAlarm();
+  setSub("🛡️ scanning...");
+  const steps = [
+    "ANTIVIRUS SCAN INITIATED...",
+    "Checking calculator.exe......... OK",
+    "Checking math.dll............... OK",
+    "Checking brain.exe.............. SLOW",
+    "Checking feelings.sys........... INFECTED",
+    "Checking common_sense.dll....... NOT FOUND",
+    "──────────────────────────",
+    "⚠️  2 THREATS DETECTED:",
+    "  ► arithmetic.exe [QUARANTINED]",
+    "  ► responsibility.dll [DELETED]",
+    "──────────────────────────",
+    "✅ Safe from math. Have a nice day."
+  ];
+  const el = document.getElementById('display-main');
+  el.className = 'display-main tiny'; el.textContent = '';
+  let i = 0;
+  const iv = setInterval(() => {
+    if (i >= steps.length) { clearInterval(iv); return; }
+    el.textContent += (i > 0 ? '\n' : '') + steps[i++];
+  }, 340);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  POPUPS & DIALOGS
+// ═══════════════════════════════════════════════════════════
+
+// Windows Error Dialog
+function showErrorDialog() {
+  playError();
+  document.getElementById('error-msg').innerHTML =
+    'Calculator.exe has encountered a fatal error.<br><br>' +
+    'Error code: <strong>0xDEADBEEF</strong><br>' +
+    'Reason: <em>Math is hard and we gave up.</em>';
+  document.getElementById('error-overlay').classList.add('active');
+}
+function closeError() {
+  document.getElementById('error-overlay').classList.remove('active');
+  typeWriter("Error dismissed.\nThe error, however,\nis still very much there.");
+}
+function errorOK() {
+  errorStage++;
+  const msgs = [
+    'Are you <strong>sure</strong>?<br><br>Clicking OK accepts that this<br>calculator does not calculate.',
+    'Are you <strong>REALLY</strong> sure?<br><br>This action cannot be undone.<br>(Nothing was done anyway.)',
+    'OK clicked <strong>' + errorStage + '</strong> times.<br><br>We appreciate your persistence.<br>It changes nothing.',
+    'This is getting embarrassing<br>for both of us.',
+    'STOP. Please.',
+  ];
+  if (errorStage <= 5) {
+    document.getElementById('error-msg').innerHTML = msgs[Math.min(errorStage-1, msgs.length-1)];
+    playBlip();
+  } else {
+    closeError();
+    typeWriter("Congratulations.\nYou clicked OK " + errorStage + " times.\nThis is your legacy.");
+    playSuccess(); confetti();
+  }
+}
+function errorCancel() {
+  closeError();
+  typeWriter("Cancel pressed.\nNothing was cancelled.\nEverything proceeds as planned.");
+}
+
+// Fake Progress (%)
+let progTimer = null;
+function fakeProgress() {
+  playBlip();
+  const popup = document.getElementById('progress-popup');
+  const fill  = document.getElementById('progress-fill');
+  const label = document.getElementById('progress-label');
+  const title = document.getElementById('progress-title');
+  title.textContent = pick(["⏳ Loading common sense...","🔢 Initializing numbers...","🤔 Reconsidering life choices...","📊 Calibrating logic..."]);
+  popup.style.display = 'block';
+  let pct = 0; fill.style.width = '0%'; label.textContent = '0%';
+  clearInterval(progTimer);
+  progTimer = setInterval(() => {
+    pct = Math.min(pct + Math.random() * 7, 99);
+    fill.style.width = pct.toFixed(1) + '%';
+    label.textContent = pct.toFixed(1) + '%';
+    if (pct >= 99) {
+      clearInterval(progTimer);
+      label.textContent = "99%... almost there...";
+      setTimeout(() => { label.textContent = "99%... still loading...";
+      setTimeout(() => { label.textContent = "Something went wrong. Try again.";
+      fill.style.background = '#ff453a';
+      setTimeout(() => { popup.style.display = 'none'; fill.style.background = '#ff9f0a'; }, 2500);
+      }, 2000); }, 2000);
+    }
+  }, 100);
+}
+
+// Incoming call
+let callBackTimer = null;
+function fakeCall() {
+  clearTimeout(callBackTimer); playPhone();
+  const caller = pick(callers);
+  document.getElementById('call-avatar').textContent = caller.avatar;
+  document.getElementById('call-name').textContent   = caller.name;
+  document.getElementById('call-sub').textContent    = caller.sub;
+  document.getElementById('call-overlay').classList.add('active');
+}
+function acceptCall() {
+  document.getElementById('call-overlay').classList.remove('active');
+  typeWriter(pick(callResponses.accept)); playSuccess();
+}
+function declineCall() {
+  document.getElementById('call-overlay').classList.remove('active');
+  playBlip();
+  typeWriter(pick(callResponses.decline));
+  callBackTimer = setTimeout(() => fakeCall(), 3500);
+}
+
+// iOS Notification
+let notifTimer = null;
+function showWinNotif(data) {
+  const d = data || pick(winNotifs);
+  document.getElementById('notif-title').textContent = d.title;
+  document.getElementById('notif-body').textContent  = d.body;
+  const el = document.getElementById('win-notif');
+  el.classList.add('show');
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => el.classList.remove('show'), 5500);
+  playBlip();
+}
+function closeNotif() { document.getElementById('win-notif').classList.remove('show'); }
+
+// Fake Update
+function showUpdatePopup() {
+  document.getElementById('update-popup').style.display = 'block';
+  document.getElementById('update-dl-btn').style.display = 'block';
+  document.getElementById('update-progress').style.display = 'none';
+  document.getElementById('update-fill').style.width = '0%';
+}
+function startFakeUpdate() {
+  document.getElementById('update-dl-btn').style.display = 'none';
+  document.getElementById('update-progress').style.display = 'block';
+  const fill = document.getElementById('update-fill');
+  const status = document.getElementById('update-status');
+  let pct = 0, phase = 0;
+  const checkpoints = [[35,"Downloading..."],[69,"Installing..."],[69,"Optimizing..."],[69,"Almost there..."]];
+  const iv = setInterval(() => {
+    const [target, msg] = checkpoints[Math.min(phase, checkpoints.length-1)];
+    if (pct < target) { pct += Math.random() * 4; fill.style.width = Math.min(pct, target) + '%'; status.textContent = msg; }
+    else {
+      phase++;
+      if (phase >= checkpoints.length) {
+        clearInterval(iv);
+        status.textContent = "Download failed. No reason given.";
+        fill.style.background = '#ff453a';
+        setTimeout(() => { document.getElementById('update-popup').style.display = 'none'; fill.style.background = '#ff9f0a'; }, 3000);
+      }
+    }
+  }, 200);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DODGE = BUTTON
+// ═══════════════════════════════════════════════════════════
+
+const btnsDiv = document.getElementById('buttons');
+const eqBtn   = document.getElementById('eq-btn');
+
+btnsDiv.addEventListener('mousemove', e => {
+  const r = eqBtn.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const dx = e.clientX - cx, dy = e.clientY - cy;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist < 95) {
+    const ang = Math.atan2(dy, dx);
+    const pow = Math.max(110, 185 - dist);
+    eqBtn.style.transform  = `translate(${-Math.cos(ang)*pow}px, ${-Math.sin(ang)*pow}px)`;
+    eqBtn.style.transition = 'transform 0.1s';
+    eqBtn.style.zIndex = '20';
+  } else {
+    eqBtn.style.transform = '';
+    eqBtn.style.zIndex    = '';
+  }
+});
+btnsDiv.addEventListener('mouseleave', () => { eqBtn.style.transform = ''; eqBtn.style.zIndex = ''; });
+
+// ═══════════════════════════════════════════════════════════
+//  COMMON EFFECTS
+// ═══════════════════════════════════════════════════════════
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+function rainbow() {
+  const d = document.getElementById('display');
+  const cols = ['#1a0030','#001a00','#1a1a00','#00001a','#1a0000','#001a1a','#0d0d1a'];
+  let i = 0;
+  const iv = setInterval(() => {
+    d.style.background = cols[i++ % cols.length];
+    if (i > cols.length * 3) { clearInterval(iv); d.style.background = ''; }
+  }, 65);
+}
+
+function confetti() {
+  const cols = ['#ff9f0a','#30d158','#0a84ff','#ff375f','#bf5af2','#ff6961','#5ac8fa'];
+  for (let i = 0; i < 90; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'confetti-piece';
+      const size = 6 + Math.random() * 10;
+      el.style.cssText = `left:${Math.random()*100}vw;top:-20px;background:${pick(cols)};
+        width:${size}px;height:${size}px;
+        border-radius:${Math.random()>.5?'50%':'2px'};
+        animation-duration:${1.5+Math.random()*2}s;`;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 4500);
+    }, i * 22);
+  }
+}
+
+let animTimer = null;
+function animCalc(name, duration) {
+  const c = document.getElementById('calc');
+  c.style.animation = ''; void c.offsetWidth;
+  c.style.animation = `${name} ${duration}`;
+  clearTimeout(animTimer);
+  animTimer = setTimeout(() => { c.style.animation = ''; }, parseFloat(duration) * 1000 + 100);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  AMBIENT CHAOS  (random event every 30–55 seconds)
+// ═══════════════════════════════════════════════════════════
+
+function ambientChaos() {
+  pick([
+    () => showWinNotif(),
+    () => fakeCall(),
+    () => teleport(),
+    () => { showToast("👁️ I'm watching you press buttons."); },
+    () => { shuffleButtons(); showToast("🔀 Buttons shuffled."); },
+    () => flipCalc(),
+  ])();
+  setTimeout(ambientChaos, 30000 + Math.random() * 25000);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UTILITY
+// ═══════════════════════════════════════════════════════════
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+
+window.onload = () => {
+  setTimeout(ambientChaos, 35000 + Math.random() * 20000);
+};
+</script>
+</body>
+</html>
