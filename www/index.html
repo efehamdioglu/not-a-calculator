@@ -631,8 +631,8 @@ function hit(key) {
   if (key === '=')   { equalsMagic(); return; }
   if (key === '.')   { ghostTyping(); return; }
 
-  // Numbers: text 2x more likely than visual
-  pick([...TEXT_POOL, ...TEXT_POOL, ...VISUAL_POOL])();
+  // Numbers: text effects only — visual chaos stays on operator buttons
+  pick(TEXT_POOL)();
 }
 
 // ═══════════════════════════════════════════════════════════
